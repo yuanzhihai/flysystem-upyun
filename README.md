@@ -25,8 +25,8 @@ $ composer require "yzh52521/flysystem-upyun"
 
 ```php
 
-use yzh52521\flysystem\Filesystem;
-use yzh52521\flysystem\Upyun\UpyunAdapter;
+use League\Flysystem\Filesystem;
+use yzh52521\Flysystem\Upyun\UpyunAdapter;
 
 $bucket = 'your-bucket-name';
 $operator = 'oparator-name';
