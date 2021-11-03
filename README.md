@@ -6,10 +6,6 @@
 
 - PHP >= 5.6
 
-# 视频教程
-
-> 视频使用教程(当然是免费的)：https://www.codecasts.com/series/awesome-laravel-packages/episodes/8
-
 # 安装
 
 直接可以通过 composer 来安装:
