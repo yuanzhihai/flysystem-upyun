@@ -4,7 +4,9 @@
 
 # Requirement
 
-- PHP >= 5.6
+- PHP >= 7.2
+- League/Filesystem >=2.0 
+
 
 # 安装
 
@@ -12,7 +14,7 @@
 
 ```shell
 
-$ composer require "yzh52521/flysystem-upyun"
+$ composer require yzh52521/flysystem-upyun 2.0
 ```
 
 # 使用
@@ -44,12 +46,6 @@ bool $flysystem->write('file.md', 'contents');
 
 bool $flysystem->writeStream('file.md', fopen('path/to/your/local/file.jpg', 'r'));
 
-bool $flysystem->update('file.md', 'new contents');
-
-bool $flysystem->updateStram('file.md', fopen('path/to/your/local/file.jpg', 'r'));
-
-bool $flysystem->rename('foo.md', 'bar.md');
-
 bool $flysystem->copy('foo.md', 'foo2.md');
 
 bool $flysystem->delete('file.md');
@@ -68,7 +64,6 @@ string $flysystem->getUrl('file.md');
 
 string $flysystem->getMimetype('file.md');
 
-int $flysystem->getTimestamp('file.md');
 
 ```
 

@@ -2,15 +2,18 @@
 
 namespace yzh52521\Flysystem\Upyun;
 
+use League\Flysystem\FileAttributes;
+use League\Flysystem\FilesystemAdapter;
+use League\Flysystem\UnableToReadFile;
+use League\Flysystem\UnableToRetrieveMetadata;
 use Upyun\Upyun;
 use League\Flysystem\Config;
-use League\Flysystem\Adapter\AbstractAdapter;
 
 /**
  * Class UpyunAdapter
  * @package yzh52521\flysystem\Upyun
  */
-class UpyunAdapter extends AbstractAdapter
+class UpyunAdapter implements FilesystemAdapter
 {
     /**
      * @var
@@ -53,137 +56,142 @@ class UpyunAdapter extends AbstractAdapter
     }
 
     /**
-     * @param string $path
-     * @param string $contents
-     * @param Config $config
+     * @throws \Exception
      */
-    public function write($path, $contents, Config $config)
+    public function fileExists(string $path): bool
     {
-        return $this->client()->write($path, $contents);
-    }
-
-    /**
-     * @param string $path
-     * @param resource $resource
-     * @param Config $config
-     */
-    public function writeStream($path, $resource, Config $config)
-    {
-        return $this->client()->write($path, $resource);
+        return $this->has($path);
     }
 
     /**
      * @param string $path
      * @param string $contents
      * @param Config $config
+     * @throws \Exception
      */
-    public function update($path, $contents, Config $config)
+    public function write(string $path, string $contents, Config $config): void
     {
-        return $this->write($path, $contents, $config);
+        $this->client()->write($path, $contents);
     }
 
     /**
      * @param string $path
-     * @param resource $resource
+     * @param resource $contents
      * @param Config $config
+     * @throws \Exception
      */
-    public function updateStream($path, $resource, Config $config)
+    public function writeStream(string $path, $contents, Config $config): void
     {
-        return $this->writeStream($path, $resource, $config);
+        $this->write($path, $contents, $config);
     }
+
+    /**
+     * @param string $path
+     * @param resource $contents
+     * @param Config $config
+     * @throws \Exception
+     */
+    public function update(string $path, $contents, Config $config): void
+    {
+        $this->write($path, $contents, $config);
+    }
+
 
     /**
      * @param string $path
      * @param string $newpath
+     * @param Config $config
+     * @throws \Exception
      */
-    public function rename($path, $newpath)
+    public function copy(string $source, string $destination, Config $config): void
     {
-        $this->copy($path, $newpath);
-        return $this->delete($path);
+        $this->writeStream($destination, fopen($this->getUrl($source), 'rb'), $config);
     }
 
     /**
      * @param string $path
-     * @param string $newpath
+     * @throws \Exception
      */
-    public function copy($path, $newpath)
+    public function delete(string $path): void
     {
-        $this->writeStream($newpath, fopen($this->getUrl($path), 'rb'), new Config());
-        return true;
-    }
-
-    /**
-     * @param string $path
-     */
-    public function delete($path)
-    {
-        return $this->client()->delete($path);
+        $this->client()->delete($path);
     }
 
     /**
      * @param string $dirname
+     * @throws \Exception
      */
-    public function deleteDir($dirname)
+    public function deleteDirectory(string $path): void
     {
-        return $this->client()->deleteDir($dirname);
+        $this->client()->deleteDir($path);
     }
 
     /**
      * @param string $dirname
      * @param Config $config
+     * @throws \Exception
      */
-    public function createDir($dirname, Config $config)
+    public function createDirectory($dirname, Config $config): void
     {
-        return $this->client()->createDir($dirname);
+        $this->client()->createDir($dirname);
     }
 
     /**
      * @param string $path
      * @param string $visibility
      */
-    public function setVisibility($path, $visibility)
+    public function setVisibility($path, $visibility): void
     {
-        return true;
     }
 
     /**
      * @param string $path
+     * @throws \Exception
      */
-    public function has($path)
+    public function has(string $path): bool
     {
         return $this->client()->has($path);
     }
 
     /**
      * @param string $path
+     * @return string;
      */
-    public function read($path)
+    public function read(string $path): string
     {
-        $contents = file_get_contents($this->getUrl($path));
-        return compact('contents', 'path');
+        $result = file_get_contents($this->getUrl($path));
+        if ($result === false) {
+            throw UnableToReadFile::fromLocation($path);
+        }
+        return $result;
     }
 
     /**
      * @param string $path
+     * @param resource
      */
-    public function readStream($path)
+    public function readStream(string $path): bool
     {
-        $stream = fopen($this->getUrl($path), 'rb');
-        return compact('stream', 'path');
+        if ($result = fopen($this->getUrl($path), 'rb')) {
+            return $result;
+        }
+        throw UnableToReadFile::fromLocation($path);
     }
 
     /**
-     * @param string $directory
-     * @param bool $recursive
+     * @param string $path
+     * @param bool $deep
+     * @return iterable
+     * @throws \Exception
      */
-    public function listContents($directory = '', $recursive = false)
+    public function listContents(string $path, bool $deep): iterable
     {
         $list = [];
 
-        $result = $this->client()->read($directory, null, ['X-List-Limit' => 100, 'X-List-Iter' => null]);
+        $result = $this->client()->read($path, null, ['X-List-Limit' => 100, 'X-List-Iter' => null]);
 
         foreach ($result['files'] as $files) {
-            $list[] = $this->normalizeFileInfo($files, $directory);
+            $list[] = $this->normalizeFileInfo($files, $path);
         }
 
         return $list;
@@ -191,16 +199,18 @@ class UpyunAdapter extends AbstractAdapter
 
     /**
      * @param string $path
+     * @return array
      */
-    public function getMetadata($path)
+    public function getMetadata(string $path): array
     {
         return $this->client()->info($path);
     }
 
     /**
      * @param string $path
+     * @return array
      */
-    public function getType($path)
+    public function getType(string $path): array
     {
         $response = $this->getMetadata($path);
 
@@ -210,54 +220,71 @@ class UpyunAdapter extends AbstractAdapter
     /**
      * @param string $path
      */
-    public function getSize($path)
+    public function getSize(string $path): array
     {
         $response = $this->getMetadata($path);
 
         return ['size' => $response['x-upyun-file-size']];
     }
 
-    /**
-     * @param string $path
-     */
-    public function getMimetype($path)
+    public function fileSize(string $path): FileAttributes
     {
-        $headers  = get_headers($this->getUrl($path), 1);
-        $mimetype = $headers['Content-Type'];
-        return compact('mimetype');
+        $size = $this->getSize($path);
+        return new FileAttributes($path, null, null, null, $size['size']);
     }
 
     /**
      * @param string $path
      */
-    public function getTimestamp($path)
+    public function mimeType(string $path): FileAttributes
     {
         $response = $this->getMetadata($path);
-
-        return ['timestamp' => $response['x-upyun-file-date']];
+        return new FileAttributes($path, null, null, null, $response['content-type']);
     }
+
 
     /**
      * @param string $path
+     * @return FileAttributes
      */
-    public function getVisibility($path)
+    public function lastModified(string $path): FileAttributes
     {
-        return true;
+        $response = $this->getMetadata($path);
+        return new FileAttributes($path, null, null, $response['last-modified']);
     }
+
 
     /**
      * @param $path
      * @return string
      */
-    public function getUrl($path)
+    public function getUrl($path): string
     {
         return $this->normalizeHost($this->domain) . $path;
     }
 
     /**
+     * @param string $source
+     * @param string $destination
+     * @param Config $config
+     * @throws \Exception
+     */
+    public function move(string $source, string $destination, Config $config): void
+    {
+        $this->client()->move($source, $destination);
+    }
+
+
+    public function visibility(string $path): FileAttributes
+    {
+        throw UnableToRetrieveMetadata::visibility($path);
+    }
+
+
+    /**
      * @return Upyun
      */
-    protected function client()
+    protected function client(): Upyun
     {
         $config         = new \Upyun\Config($this->bucket, $this->operator, $this->password);
         $config->useSsl = $this->protocol === 'https';
@@ -272,7 +299,7 @@ class UpyunAdapter extends AbstractAdapter
      *
      * @return array
      */
-    protected function normalizeFileInfo(array $stats, $directory)
+    protected function normalizeFileInfo(array $stats, string $directory): array
     {
         $filePath = ltrim($directory . '/' . $stats['name'], '/');
 
@@ -284,11 +311,12 @@ class UpyunAdapter extends AbstractAdapter
         ];
     }
 
+
     /**
      * @param $domain
      * @return string
      */
-    protected function normalizeHost($domain)
+    protected function normalizeHost($domain): string
     {
         if (0 !== stripos($domain, 'https://') && 0 !== stripos($domain, 'http://')) {
             $domain = $this->protocol . "://{$domain}";
